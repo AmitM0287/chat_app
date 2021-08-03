@@ -28,3 +28,14 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['first_name', 'last_name', 'email', 'username', 'password']
+
+
+class PasswordSerializer(serializers.ModelSerializer):
+    """
+        Password Serializer : password
+    """
+    password = serializers.CharField(min_length=4, max_length=30, required=True)
+
+    class Meta:
+        model = User
+        fields = ['password']
