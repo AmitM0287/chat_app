@@ -1,4 +1,3 @@
-from rest_framework.serializers import Serializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -10,7 +9,8 @@ from django.contrib.auth.models import User, auth
 import jwt
 
 from logging_config.logger import get_logger
-from auth_app.serializers import LoginSerializer, RegisterSerializer
+from auth_app.serializers import LoginSerializer, RegisterSerializer, PasswordSerializer
+from auth_app.utils import get_object_by_username
 
 # Logger configuration
 logger = get_logger()
@@ -18,7 +18,7 @@ logger = get_logger()
 
 class LoginAPIView(APIView):
     """
-        Login API View : LoginSerializer, create token, authenticate user, set cache
+        Login API View : LoginSerializer, create token, authenticate user
     """
     def post(self, request):
         """
@@ -76,6 +76,69 @@ class RegisterAPIView(APIView):
         except ValidationError as e:
             logger.exception(e)
             return Response({'success': False, 'message': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.exception(e)
+            return Response({'success': False, 'message': 'Oops! Something went wrong! Please try again...'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ResetPasswordAPIView(APIView):
+    """
+        Reset Password API View : PasswordSerializer, reset password
+    """
+    def put(self, request, *args,**kwargs):
+        """
+            This method is used to reset password for a user instance.
+            :param request: It's accept token and password as parameter.
+            :return: It's return response that password is updated or not.
+        """
+        try:
+            # Getting token from URL
+            token = kwargs['token']
+            # Decode token
+            data = jwt.decode(token, settings.SECRET_KEY, algorithms='HS256')
+            # Get user instance according to username
+            user = get_object_by_username(data.get('username'))
+            # Password serializer
+            serializer = PasswordSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            # Reset password
+            user.set_password(serializer.data.get('password'))
+            user.save()
+            # Password reseted successfully
+            return Response({'success': True, 'message': 'Reset password successfully!', 'data': {'username': data.get('username')}}, status=status.HTTP_200_OK)
+        except User.DoesNotExist as e:
+            logger.exception(e)
+            return Response({'success': False, 'message': 'User does not exist!', 'data': {'username': data.get('username')}}, status=status.HTTP_400_BAD_REQUEST)
+        except ValidationError as e:
+            logger.exception(e)
+            return Response({'success': False, 'message': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.exception(e)
+            return Response({'success': False, 'message': 'Oops! Something went wrong! Please try again...'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ForgotPasswordAPIView(APIView):
+    """
+        ForgotPasswordAPIView: forgot password
+    """
+    def post(self, request):
+        """
+            This method is used for fogot password of a user instance.
+            :param request: It's accept username as parameter.
+            :return: It's return response that reset password link send successfully or not.
+        """
+        try:
+            # Get user instance according to username
+            user = get_object_by_username(request.data.get('username'))
+            # Create token
+            token = jwt.encode({'username': request.data.get('username')}, settings.SECRET_KEY, algorithm='HS256')
+            # Reset link
+            reset_pass_link = 'http://127.0.0.1:8000/user/reset-password/' + token
+            # Get user instance according to username
+            return Response({'success': True, 'message': 'Email sended successfully to your registered email address for reset password!', 'data': {'username': request.data.get('username')}}, status=status.HTTP_200_OK)
+        except User.DoesNotExist as e:
+            logger.exception(e)
+            return Response({'success': False, 'message': 'User does not exist!', 'data': {'username': request.data.get('username')}}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.exception(e)
             return Response({'success': False, 'message': 'Oops! Something went wrong! Please try again...'}, status=status.HTTP_400_BAD_REQUEST)
